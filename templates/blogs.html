@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}存档文章{% endblock %}
+
+{% block content %}
+<style>
+    /* 去掉 level 的背景颜色，保留基本样式 */
+    .list-item {
+        margin-bottom: 12px;
+        cursor: pointer;
+        padding: 12px;
+        border-radius: 8px;
+        transition: background-color 0.2s;
+    }
+    
+    .list-item:hover {
+        background-color: var(--hover-bg, #f5f5f5);
+    }
+    
+    /* 归档文章的条纹背景 */
+    .list-item.archived {
+        background: linear-gradient(
+            45deg,
+            rgba(0,0,0,0.02) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(0,0,0,0.02) 50%,
+            rgba(0,0,0,0.02) 75%,
+            transparent 75%,
+            transparent
+        );
+        background-size: 20px 20px;
+        position: relative;
+    }
+    
+    /* 可选：归档文章加个淡灰色底色 */
+    .list-item.archived {
+        background-color: #f9f9f9;
+        background-image: linear-gradient(
+            45deg,
+            rgba(0,0,0,0.03) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(0,0,0,0.03) 50%,
+            rgba(0,0,0,0.03) 75%,
+            transparent 75%,
+            transparent
+        );
+        background-size: 20px 20px;
+    }
+    
+    #toggleBtn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 0;
+        margin: 0;
+        color: var(--text-muted);
+    }
+    #toggleBtn:hover {
+        color: var(--text-color);
+    }
+    .hidden-icon {
+        font-size: 16px;
+        margin-right: 4px;
+        opacity: 0.7;
+    }
+    .archived-icon {
+        font-size: 16px;
+        margin-right: 4px;
+        opacity: 0.7;
+    }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px;">
+    <h1>博客文章</h1>
+    <div>
+        <button id="toggleBtn" title="切换显示隐藏文章">
+            {% if show_hidden == 'true' %}
+                👁️
+            {% else %}
+                👁️‍🗨️
+            {% endif %}
+        </button>
+        <a href="{{ url_for('create_blog') }}" class="btn btn-primary" style="margin-left: 10px;">写文章</a>
+    </div>
+</div>
+
+<div>
+    {% if blogs %}
+        {% for blog in blogs %}
+            {% set is_archived = blog['is_archived'] if 'is_archived' in blog.keys() else 0 %}
+            
+            <div class="list-item {% if is_archived == 1 %}archived{% endif %}" data-blog-id="{{ blog['id'] }}" style="margin-bottom: 12px; cursor: pointer; padding: 12px; border-radius: 8px;">
+                <div style="font-size: 18px; font-weight: 600; color: var(--text-color); line-height: 1.4;">
+                    {% if blog['is_hidden'] == 1 %}<span class="hidden-icon">👁️‍🗨️</span>{% endif %}
+                    {% if is_archived == 1 %}<span class="archived-icon">🔖</span>{% endif %}
+                    {{ blog['title'] }}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <p>还没有博客文章</p>
+            <a href="{{ url_for('create_blog') }}" class="btn btn-primary mt-20">创建第一篇文章</a>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    document.getElementById('toggleBtn').addEventListener('click', function() {
+        const current = '{{ show_hidden }}';
+        const newValue = current === 'true' ? 'false' : 'true';
+        window.location.href = '/blogs?show_hidden=' + newValue;
+    });
+
+    document.querySelectorAll('.list-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') return;
+            const blogId = this.getAttribute('data-blog-id');
+            window.location.href = '/blogs/' + blogId;
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}体重{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <script type="application/json" id="recordsData">{{ records_json | safe }}</script>
+
+    <div class="compact-form-section">
+        <div class="quick-tags" id="foodTags"></div>
+        <div class="form-grid">
+            <input type="date" id="recordDate" value="{{ today }}" class="compact-input date-input">
+            <input type="number" id="recordWeight" step="0.1" placeholder="体重(kg)" class="compact-input" style="width:100px">
+            <input type="text" id="recordNote" placeholder="吃了什么..." class="compact-input desc-input">
+            <button type="button" id="saveBtn" class="add-btn">保存</button>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="chart-panel" id="chartPanel">
+            <div class="chart-range">
+                <a href="?limit=10" class="range-btn {% if current_limit == '10' %}active{% endif %}">10条</a>
+                <a href="?limit=30" class="range-btn {% if current_limit == '30' %}active{% endif %}">30条</a>
+                <a href="?limit=100" class="range-btn {% if current_limit == '100' %}active{% endif %}">100条</a>
+                <a href="?limit=0" class="range-btn {% if current_limit == '0' %}active{% endif %}">全部</a>
+            </div>
+            <div class="tooltip" id="tooltip"></div>
+            <svg id="weightChart" viewBox="0 0 600 350" style="width:100%;height:auto">
+                <line x1="50" y1="30" x2="50" y2="300" stroke="#ddd" stroke-width="1"/>
+                <line x1="50" y1="300" x2="570" y2="300" stroke="#ddd" stroke-width="1"/>
+                <polyline id="weightLine" fill="none" stroke="#7B3F00" stroke-width="2.5" stroke-linejoin="round"/>
+                <line class="cross-line" id="crossV" y1="30" y2="300"/>
+                <line class="cross-line" id="crossH" x1="50" x2="570"/>
+                <circle class="cross-dot" id="crossDot" r="5" fill="none" stroke="#e74c3c" stroke-width="2"/>
+                <g id="pointsGroup"></g>
+                <g id="labelsGroup"></g>
+            </svg>
+        </div>
+        <div class="detail-panel" id="detailPanel"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-container{max-width:1100px;margin:0 auto;padding:15px}
+.main-layout{display:flex;gap:15px;min-height:500px}
+.chart-panel{flex:1;min-width:0;border:1px solid #e0e0e0;padding:15px;position:relative;background:#fff;border-radius:6px}
+.chart-range{display:flex;gap:4px}
+.range-btn{padding:3px 10px;border:1px solid #ddd;border-radius:3px;font-size:11px;color:#666;text-decoration:none;background:#f9f9f9}
+.range-btn:hover{background:#eee}
+.range-btn.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
+.detail-panel{width:320px;flex-shrink:0;border:1px solid #e0e0e0;padding:15px;background:#fff;border-radius:6px}
+.detail-date{font-size:15px;font-weight:bold;margin-bottom:12px;padding-bottom:8px;color:var(--primary-color)}
+.detail-weight{font-size:28px;font-weight:bold;color:#333;margin-bottom:15px}
+.note-list{list-style:none;padding:0;margin:0}
+.note-item{display:flex;align-items:flex-start;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#555;line-height:1.6}
+.note-item:last-child{border-bottom:none}
+.note-text{flex:1}
+.quick-tags{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.tag-btn{padding:3px 10px;border:1px solid #ddd;border-radius:12px;background:#f5f5f5;color:#555;font-size:11px;cursor:pointer;white-space:nowrap}
+.tag-btn:hover{background:var(--primary-light);border-color:var(--primary-color);color:var(--primary-dark)}
+.cross-line{stroke:#999;stroke-width:1;stroke-dasharray:4,3;display:none;pointer-events:none}
+.cross-dot{display:none;pointer-events:none}
+.tooltip{display:none;position:absolute;background:rgba(0,0,0,.75);color:#fff;padding:4px 10px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:10}
+.data-point{cursor:pointer;fill:var(--primary-color)}
+.data-point.active{fill:#e74c3c}
+body.dark-mode .chart-panel,body.dark-mode .detail-panel{background:#242424;border-color:#444}
+body.dark-mode .range-btn{background:#333;color:#ccc;border-color:#555}
+body.dark-mode .range-btn.active{background:var(--primary-color);color:#fff}
+body.dark-mode .detail-weight{color:#e0e0e0}
+body.dark-mode .note-item{color:#ccc;border-bottom-color:#333}
+body.dark-mode .tag-btn{background:#333;color:#ccc;border-color:#555}
+body.dark-mode .tag-btn:hover{background:#3a2a1a;color:#e0c8a0;border-color:#a0522d}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const records = JSON.parse(document.getElementById('recordsData').textContent);
+const today = '{{ today }}';
+let currentDate = today;
+
+const foodPresets = [
+    '流食：250ml全脂牛奶+一根香蕉+花生芝麻酱(花生80%)+燕麦',
+    '正餐：外食'
+];
+
+const W = 600, H = 350, PL = 50, PR = 30, PT = 40, PB = 50;
+const DW = W - PL - PR, DH = H - PT - PB;
+let points = [], yLabels = [];
+
+const buildPoints = () => {
+    points = []; yLabels = [];
+    if (!records.length) return;
+    const weights = records.map(r => r.weight);
+    const minW = Math.max(Math.min(...weights) - 1, 0);
+    const maxW = Math.max(...weights) + 1;
+    const range = maxW - minW;
+    for (let i = 4; i >= 0; i--) yLabels.push((minW + range / 4 * i).toFixed(1));
+    records.forEach((r, i) => {
+        const x = records.length === 1 ? PL + DW / 2 : PL + DW / (records.length - 1) * i;
+        const y = PT + DH - (r.weight - minW) / range * DH;
+        points.push({ cx: x, cy: y, date: r.date, weight: r.weight });
+    });
+};
+
+const renderChart = () => {
+    buildPoints();
+    const pg = document.getElementById('pointsGroup');
+    const lg = document.getElementById('labelsGroup');
+    const line = document.getElementById('weightLine');
+    const showLabels = records.length <= 20;
+    const r = records.length > 60 ? 3 : 5;
+    let pH = '', lH = '', lP = '';
+
+    points.forEach(p => {
+        pH += `<circle class="data-point${p.date === currentDate ? ' active' : ''}" cx="${p.cx}" cy="${p.cy}" r="${r}" data-date="${p.date}"/>`;
+        if (showLabels) lH += `<text x="${p.cx}" y="${H - 15}" text-anchor="middle" font-size="10" fill="#999">${p.date.substring(5)}</text>`;
+        lP += `${p.cx},${p.cy} `;
+    });
+
+    if (!showLabels && points.length) {
+        const idxs = points.length <= 10 ? [...Array(points.length).keys()] : [0, Math.floor(points.length / 4), Math.floor(points.length / 2), Math.floor(points.length * 3 / 4), points.length - 1];
+        idxs.forEach(i => lH += `<text x="${points[i].cx}" y="${H - 15}" text-anchor="middle" font-size="10" fill="#999">${points[i].date.substring(5)}</text>`);
+    }
+
+    pg.innerHTML = pH;
+    lg.innerHTML = lH;
+    line.setAttribute('points', lP.trim());
+
+    if (points.length) {
+        let yH = '';
+        yLabels.forEach((v, i) => {
+            const yP = PT + DH / 4 * i;
+            yH += `<text x="${PL - 8}" y="${yP + 4}" text-anchor="end" font-size="11" fill="#999">${v}kg</text>`;
+            if (i < 4) yH += `<line x1="${PL}" y1="${yP}" x2="${W - PR}" y2="${yP}" stroke="#eee" stroke-width="1" stroke-dasharray="4"/>`;
+        });
+        lg.innerHTML += yH;
+    }
+};
+
+const renderFoodTags = () => {
+    document.getElementById('foodTags').innerHTML = foodPresets.map(t =>
+        `<button type="button" class="tag-btn">${t}</button>`
+    ).join('');
+    document.querySelectorAll('#foodTags .tag-btn').forEach((btn, i) => {
+        btn.addEventListener('click', () => {
+            document.getElementById('recordNote').value = foodPresets[i];
+            document.getElementById('recordNote').focus();
+        });
+    });
+};
+
+const saveFromForm = () => {
+    const date = document.getElementById('recordDate').value;
+    const weight = document.getElementById('recordWeight').value.trim();
+    const note = document.getElementById('recordNote').value.trim();
+    if (!date) return;
+    const payload = { date, note };
+    if (weight) payload.weight = parseFloat(weight);
+    fetch('/tizhong/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(r => r.json()).then(d => {
+        if (d.success) { document.getElementById('recordNote').value = ''; location.reload(); }
+        else alert(d.message);
+    });
+};
+
+document.getElementById('saveBtn').addEventListener('click', saveFromForm);
+
+const deleteNote = (date, index) => {
+    fetch('/tizhong/delete_note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, index })
+    }).then(r => r.json()).then(d => { if (d.success) loadDetail(date); else alert(d.message); });
+};
+
+const svg = document.getElementById('weightChart');
+const chartPanel = document.getElementById('chartPanel');
+const tooltip = document.getElementById('tooltip');
+const crossV = document.getElementById('crossV');
+const crossH = document.getElementById('crossH');
+const crossDot = document.getElementById('crossDot');
+
+const hideCross = () => {
+    crossV.style.display = 'none'; crossH.style.display = 'none';
+    crossDot.style.display = 'none'; tooltip.style.display = 'none';
+};
+
+chartPanel.addEventListener('mousemove', e => {
+    if (!points.length) return;
+    const rect = svg.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { hideCross(); return; }
+    const sX = W / rect.width, sY = H / rect.height;
+    const mX = (e.clientX - rect.left) * sX, mY = (e.clientY - rect.top) * sY;
+    let nearest = null, minD = Infinity;
+    points.forEach(p => {
+        const dx = mX - p.cx, dy = mY - p.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minD) { minD = dist; nearest = p; }
+    });
+    if (nearest && minD < 50) {
+        crossV.setAttribute('x1', nearest.cx); crossV.setAttribute('x2', nearest.cx); crossV.style.display = 'block';
+        crossH.setAttribute('y1', nearest.cy); crossH.setAttribute('y2', nearest.cy); crossH.style.display = 'block';
+        crossDot.setAttribute('cx', nearest.cx); crossDot.setAttribute('cy', nearest.cy); crossDot.style.display = 'block';
+        tooltip.style.display = 'block';
+        tooltip.style.left = (nearest.cx / W * rect.width + 15) + 'px';
+        tooltip.style.top = (nearest.cy / H * rect.height - 30) + 'px';
+        tooltip.textContent = `${nearest.date}  ${nearest.weight}kg`;
+        selectDate(nearest.date);
+    } else { hideCross(); }
+});
+
+chartPanel.addEventListener('mouseleave', hideCross);
+
+const selectDate = date => {
+    if (currentDate === date) return;
+    currentDate = date;
+    document.querySelectorAll('.data-point').forEach(p => p.classList.toggle('active', p.dataset.date === date));
+    document.getElementById('recordDate').value = date;
+    loadDetail(date);
+};
+
+const loadDetail = date => {
+    fetch(`/tizhong/get_detail?date=${date}`).then(r => r.json()).then(d => { if (d.success) renderDetail(d); });
+};
+
+const renderDetail = data => {
+    const weight = data.has_record && data.weight != null ? data.weight : '';
+    const noteList = data.note_list || [];
+    let html = `<div class="detail-date">${data.date}</div>`;
+    html += weight ? `<div class="detail-weight">${weight} <span class="unit">kg</span></div>` : `<div class="detail-weight" style="color:#bbb">-- <span class="unit">kg</span></div>`;
+    if (noteList.length) {
+        html += '<ul class="note-list">';
+        noteList.forEach((n, i) => { html += `<li class="note-item"><span class="note-text">${n.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span><button class="note-del" data-idx="${i}">删除</button></li>`; });
+        html += '</ul>';
+    } else { html += '<div class="no-record">暂无饮食记录</div>'; }
+    document.getElementById('detailPanel').innerHTML = html;
+    document.querySelectorAll('.note-del').forEach(btn => { btn.addEventListener('click', () => deleteNote(data.date, parseInt(btn.dataset.idx))); });
+};
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('.compact-form-section')) { e.preventDefault(); saveFromForm(); }
+});
+
+renderFoodTags();
+renderChart();
+loadDetail(today);
+</script>
+{% endblock %}

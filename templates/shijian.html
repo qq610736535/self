@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}时间{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="compact-form-section">
+        <div class="quick-add-form">
+            <form id="behavior-record-form" onsubmit="return false;">
+                <div class="quick-tags">
+                    <button type="button" class="tag-btn tag-red" onclick="appendText('[red][/red]')">标红</button>
+                    <button type="button" class="tag-btn" onclick="appendText('[b][/b]')">加粗</button>
+                </div>
+                <div class="form-grid">
+                    <input type="date" id="date" name="date" value="{{ now }}" required class="compact-input date-input">
+                    <input type="text" id="text" name="text" placeholder="或手动输入..." class="compact-input desc-input">
+                    <button type="button" onclick="addBehaviorRecord()" class="add-btn">添加</button>
+                </div>
+            </form>
+        </div>
+        <div class="compact-filters">
+            <form method="get" action="{{ url_for('shijian') }}" class="filter-grid" id="search-form">
+                <select name="year" class="filter-select"><option value="">所有年份</option>{% for year in available_years %}<option value="{{ year }}" {% if current_year==year %}selected{% endif %}>{{ year }}</option>{% endfor %}</select>
+                <select name="month" class="filter-select"><option value="">所有月份</option>{% for month in available_months %}<option value="{{ month }}" {% if current_month and current_month|int==month|int %}selected{% endif %}>{{ month|int }}月</option>{% endfor %}</select>
+                <select name="sort" class="filter-select"><option value="desc" {% if sort_order=='desc' %}selected{% endif %}>新→旧</option><option value="asc" {% if sort_order=='asc' %}selected{% endif %}>旧→新</option></select>
+                <div class="keyword-search-wrapper"><input type="text" name="keyword" id="keyword" value="{{ keyword or '' }}" placeholder="搜索关键字..." class="keyword-input"></div>
+                <button type="submit" class="filter-apply-btn">筛选</button>
+                <a href="{{ url_for('shijian') }}" class="filter-reset-btn">重置</a>
+            </form>
+            {% if keyword %}<div class="search-info">当前搜索: "{{ keyword }}" <span class="search-count">(找到 {{ total_count }} 条记录)</span></div>{% endif %}
+        </div>
+    </div>
+
+    <div class="compact-records-container">
+        {% if grouped_data %}
+        {% for year, year_data in grouped_data.items() %}
+        <div class="compact-year-group">
+            <div class="compact-year-header"><span class="year-label">{{ year_data.name }}</span>{% if keyword %}<span class="year-match-count">{{ year_data.count }} 条</span>{% endif %}</div>
+            {% for month, month_data in year_data.months.items() %}
+            <div class="compact-month-group">
+                <div class="compact-month-header"><span class="month-label">{{ month_data.name }}</span>{% if keyword %}<span class="month-match-count">{{ month_data.count }} 条</span>{% endif %}</div>
+                {% for day, day_data in month_data.days.items() %}
+                <div class="compact-day-group">
+                    <div class="day-header-line"><span class="day-date">{{ year }}-{{ day_data.date_short }}</span>{% if keyword %}<span class="day-match-count">{{ day_data.count }} 条</span>{% endif %}</div>
+                    <div class="record-items">
+                        {% for record in day_data.records %}
+                        <div class="compact-record {% if keyword and keyword.lower() in record.text.lower() %}highlight-match{% endif %}" data-id="{{ record.id }}">
+                            <div class="record-line"><span class="record-meta"><span class="record-desc">{% if keyword %}{{ record.text.replace(keyword, '<mark>' + keyword + '</mark>') | format_behavior | safe }}{% else %}{{ record.text | format_behavior | safe }}{% endif %}</span></span><span class="record-actions"><button class="tiny-delete-btn" onclick="deleteBehaviorRecord('{{ record.id }}')" title="删除">×</button></span></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state"><div class="empty-icon"></div><p>{% if keyword %}没有找到包含 "{{ keyword }}" 的记录{% else %}暂无记录，开始记录你的生活吧！{% endif %}</p></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tag-red-color{color:red}
+.quick-tags{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.tag-btn{padding:3px 10px;border:1px solid #ddd;border-radius:12px;background:#f5f5f5;color:#555;font-size:11px;cursor:pointer;white-space:nowrap;font-weight:500}
+.tag-btn:hover{opacity:.85;transform:translateY(-1px)}
+.tag-red{background:#ffebee;color:#c62828;border-color:#ef9a9a}
+.tag-red:hover{background:#c62828;color:#fff;border-color:#c62828}
+.compact-filters{padding-top:8px;border-top:1px solid #e0e0e0}
+.filter-grid{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.keyword-search-wrapper{flex:1;min-width:150px}
+.filter-apply-btn,.filter-reset-btn{padding:6px 12px;background:#fff;color:#333;border:1px solid #ddd;border-radius:4px;font-size:11px;height:30px;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.filter-apply-btn:hover,.filter-reset-btn:hover{background:#e9ecef;border-color:#999}
+.search-info{margin-top:8px;font-size:11px;color:#666;padding:4px 0}
+.search-count{color:#999}
+.compact-records-container{background:#fff;border-radius:6px;border:1px solid #e0e0e0;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.compact-year-group{border-bottom:1px solid #e0e0e0}.compact-year-group:last-child{border-bottom:none}
+.compact-year-header{padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-left:3px solid var(--primary-color)}
+.year-label{font-size:14px;font-weight:1000;color:#2c3e50}
+.compact-month-group{padding:0 12px 5px;border-bottom:1px solid #f5f5f5}.compact-month-group:last-child{border-bottom:none}
+.compact-month-header{padding:6px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed #eee;margin-bottom:4px}
+.month-label{font-size:13px;font-weight:800;color:#666}
+.compact-day-group{padding:4px 0}
+.day-header-line{display:flex;justify-content:space-between;align-items:center;padding:2px 4px;margin-bottom:2px;background:#f9f9f9;border-radius:3px}
+.day-date{font-size:11px;color:#666;font-weight:500}
+.year-match-count,.month-match-count,.day-match-count{font-size:10px;padding:2px 6px;border-radius:10px;margin-left:8px}
+.year-match-count{background:#e8f0fe;color:#4a6fa5}
+.month-match-count{background:#e3f2fd;color:#1976d2}
+.day-match-count{background:#f5f5f5}
+.record-items{margin-left:8px}
+.compact-record{transition:background-color .2s}.compact-record:hover{background:#f8f9fa}
+.compact-record.highlight-match{background-color:#fff9e6}
+.record-line{display:flex;justify-content:space-between;align-items:center;min-height:24px;padding:2px 4px}
+.record-meta{display:flex;align-items:center;gap:8px;flex:1;overflow:hidden}
+.record-desc{font-size:12px;color:#333;word-break:break-word;line-height:1.4;flex:1}
+.record-desc mark{background-color:#ffeb3b;padding:0;color:inherit}
+
+body.dark-mode .tag-btn{background:#3a3a3a;color:#ccc;border-color:#555}
+body.dark-mode .tag-btn:hover{background:#555;color:#fff;border-color:#777}
+body.dark-mode .tag-red{background:#4a2020;color:#ff6b6b;border-color:#6b3030}
+body.dark-mode .tag-red:hover{background:#6b3030;color:#ff8787;border-color:#8b4040}
+body.dark-mode .compact-filters{border-top-color:#444}
+body.dark-mode .filter-select{background:#333;color:#e0e0e0;border-color:#444}
+body.dark-mode .filter-apply-btn,body.dark-mode .filter-reset-btn{background:#333;color:#ccc;border-color:#555}
+body.dark-mode .filter-apply-btn:hover,body.dark-mode .filter-reset-btn:hover{background:#444;border-color:#888}
+body.dark-mode .search-info{color:#aaa}
+body.dark-mode .search-count{color:#888}
+body.dark-mode .compact-records-container{background:#242424;border-color:#444}
+body.dark-mode .compact-year-group{border-bottom-color:#444}
+body.dark-mode .year-label{color:#e0e0e0}
+body.dark-mode .compact-month-group{border-bottom-color:#333}
+body.dark-mode .compact-month-header{border-bottom-color:#3a3a3a}
+body.dark-mode .month-label{color:#ccc}
+body.dark-mode .day-header-line{background:#2a2a2a}
+body.dark-mode .day-date{color:#aaa}
+body.dark-mode .year-match-count{background:#1a2a3a;color:#7ab0e0}
+body.dark-mode .month-match-count{background:#1a2a3a;color:#64b5f6}
+body.dark-mode .day-match-count{background:#333;color:#aaa}
+body.dark-mode .compact-record:hover{background:#2a2a2a}
+body.dark-mode .compact-record.highlight-match{background-color:#3a3520}
+body.dark-mode .record-desc{color:#ddd}
+body.dark-mode .record-desc mark{background-color:#665500;color:#fff}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = sel => document.querySelector(sel);
+const appendText = text => { const i = $('#text'); i.value = i.value.trim() ? i.value.trim()+' '+text : text; i.focus(); };
+
+document.addEventListener('DOMContentLoaded', () => $('#text')?.focus());
+document.addEventListener('keydown', e => { if (e.key==='Enter' && e.target.closest('#behavior-record-form')) { e.preventDefault(); addBehaviorRecord(); } });
+
+async function addBehaviorRecord() {
+    const date = $('#date').value, text = $('#text').value.trim();
+    if (!date || !text) return alert('日期和描述均为必填项');
+    try {
+        const res = await fetch('/add_behavior_record', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({date, text}) });
+        const d = await res.json();
+        d.success ? ( $('#text').value = '', location.reload() ) : alert('添加失败：'+d.message);
+    } catch { alert('添加失败'); }
+}
+
+async function deleteBehaviorRecord(id) {
+    if (!confirm('确定删除？')) return;
+    try {
+        const res = await fetch('/delete_behavior_record/'+id, { method:'POST' });
+        const d = await res.json();
+        d.success ? location.reload() : alert('删除失败：'+d.message);
+    } catch { alert('删除失败'); }
+}
+</script>
+{% endblock %}

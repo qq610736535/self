@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}记账数据导出{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1200px">
+    <div class="export-header" style="text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #f0f0f0">
+        <h1 style="color:var(--primary-color);font-size:24px;margin-bottom:6px">记账数据导出</h1>
+        <p style="color:#666;font-size:13px">选择筛选条件，导出符合条件的数据为JSON文件</p>
+    </div>
+
+    <div class="compact-form-section">
+        <h3 style="font-size:16px;color:#333;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary-color);display:inline-block">筛选条件</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+            <div>
+                <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">年份</label>
+                <select id="year" class="filter-select" style="width:100%"><option value="">全部年份</option>{% for year in available_years %}<option value="{{ year }}" {% if current_year==year %}selected{% endif %}>{{ year }}年</option>{% endfor %}</select>
+            </div>
+            <div>
+                <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">月份</label>
+                <select id="month" class="filter-select" style="width:100%"><option value="">全部月份</option>{% for m in range(1,13) %}<option value="{{ '%02d'|format(m) }}" {% if current_month=='%02d'|format(m) %}selected{% endif %}>{{ m }}月</option>{% endfor %}</select>
+            </div>
+            <div>
+                <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">收支类型</label>
+                <select id="money_type" class="filter-select" style="width:100%"><option value="">全部</option><option value="income">仅收入</option><option value="expense">仅支出</option></select>
+            </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+            <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">具体分类（可多选）</label>
+            <div id="categoryCheckboxGroup" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;max-height:100px;overflow-y:auto">
+                {% for type in available_types %}
+                <label style="display:flex;align-items:center;cursor:pointer;font-size:12px;color:#555"><input type="checkbox" value="{{ type }}" class="category-checkbox" style="margin-right:4px;accent-color:var(--primary-color)">{{ type }}</label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div>
+                <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">关键词搜索</label>
+                <input type="text" id="keyword" placeholder="描述关键词" class="compact-input" style="width:100%">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#666;display:block;margin-bottom:4px">特殊项</label>
+                <select id="show_special" class="filter-select" style="width:100%"><option value="true">显示房贷/赞助</option><option value="false">隐藏房贷/赞助</option></select>
+            </div>
+            <div style="display:flex;gap:6px;align-items:flex-end">
+                <button onclick="previewData()" class="add-btn" style="flex:1;background:#e9ecef;color:#333">预览</button>
+                <button onclick="exportData()" class="add-btn" style="flex:1">导出</button>
+                <button onclick="resetFilters()" class="add-btn" style="flex:1;background:#f5f5f5;color:#666;border:1px solid #ddd">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="statsArea" style="display:none;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div class="stat-card"><div style="font-size:11px;color:#999">总记录数</div><div style="font-size:22px;font-weight:700;color:#333" id="totalRecords">0</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#999">总收入</div><div style="font-size:22px;font-weight:700;color:#d32f2f" id="totalIncome">0</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#999">总支出</div><div style="font-size:22px;font-weight:700;color:#388e3c" id="totalExpense">0</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#999">结余</div><div style="font-size:22px;font-weight:700" id="balance">0</div></div>
+    </div>
+
+    <div id="filterInfo" style="display:none;background:#e8f5e9;border-left:4px solid #4caf50;padding:10px 14px;border-radius:6px;font-size:13px;color:#2e7d32"></div>
+</div>
+
+<style>
+.stat-card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:14px;text-align:center}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
+body.dark-mode .export-header{border-bottom-color:#444}
+body.dark-mode .export-header p{color:#aaa}
+body.dark-mode h3{color:#e0e0e0}
+body.dark-mode label{color:#aaa}
+body.dark-mode #categoryCheckboxGroup{background:#2a2a2a;border-color:#444}
+body.dark-mode .stat-card{background:#242424;border-color:#444}
+body.dark-mode .stat-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.3)}
+body.dark-mode #filterInfo{background:#1a3a1a;border-left-color:#4caf50;color:#81c784}
+</style>
+
+<script>
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+const getFilters = () => ({
+    year: $('#year').value,
+    month: $('#month').value,
+    categories: [...$$('.category-checkbox:checked')].map(cb => cb.value),
+    money_type: $('#money_type').value,
+    keyword: $('#keyword').value,
+    show_special: $('#show_special').value
+});
+
+const genFilename = (f, total) => {
+    const p = [];
+    if (f.year) p.push(f.year+'年');
+    if (f.month) p.push(parseInt(f.month)+'月');
+    if (f.categories.length && f.categories.length<=3) p.push(f.categories.join('、'));
+    else if (f.categories.length>3) p.push(f.categories.length+'个分类');
+    if (f.money_type==='income') p.push('收入');
+    if (f.money_type==='expense') p.push('支出');
+    if (f.keyword) p.push('关键词'+f.keyword);
+    return `记账_${p.length?p.join('_'):'全部数据'}_${total}条_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+};
+
+async function exportData() {
+    const f = getFilters();
+    try {
+        const res = await fetch('/qian/export/filtered', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(f) });
+        const d = await res.json();
+        if (d.success!==false) {
+            const blob = new Blob([JSON.stringify(d,null,2)], {type:'application/json;charset=utf-8'});
+            const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:genFilename(f,d.total_records)});
+            a.click(); URL.revokeObjectURL(a.href);
+            showInfo(`导出成功！${d.total_records}条记录`);
+        } else alert('导出失败：'+(d.message||'未知错误'));
+    } catch { alert('导出失败'); }
+}
+
+async function previewData() {
+    const f = getFilters();
+    try {
+        const res = await fetch('/qian/export/filtered', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(f) });
+        const d = await res.json();
+        if (d.success!==false) {
+            $('#statsArea').style.display = 'grid';
+            $('#totalRecords').textContent = d.total_records;
+            $('#totalIncome').textContent = Math.round(d.total_income);
+            $('#totalExpense').textContent = Math.round(d.total_expense);
+            const bal = d.balance, be = $('#balance');
+            be.textContent = Math.round(Math.abs(bal));
+            be.style.color = bal>=0 ? '#d32f2f' : '#388e3c';
+            showInfo(['年：'+(f.year||'全部'), '月：'+(f.month||'全部'), f.categories.length?f.categories.join(','):'全部分类'].join(' · '));
+        }
+    } catch { alert('预览失败'); }
+}
+
+const showInfo = msg => { const el = $('#filterInfo'); el.textContent = msg; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 5000); };
+
+const resetFilters = () => {
+    ['year','month','money_type','keyword'].forEach(id => $('#'+id).value = '');
+    $('#show_special').value = 'true';
+    $$('.category-checkbox').forEach(cb => cb.checked = false);
+    $('#statsArea').style.display = 'none';
+    $('#filterInfo').style.display = 'none';
+};
+</script>
+{% endblock %}

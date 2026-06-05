@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}钱{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="stats-section">
+        <div class="category-row">
+            <div class="category-ranking">
+                <div class="ranking-header">
+                    <div class="ranking-title income">收入 <span class="float-right">+{{ "%.0f"|format(total_income) }}</span></div>
+                </div>
+                <div class="category-list">{% if income_categories %}{% for cat in income_categories %}<div class="category-item"><div class="category-info"><span class="category-name type-{{ cat.type[:2] }}">{{ cat.type }}</span></div><div class="category-bar"><div class="bar-fill income-bar" style="--width: {{ cat.percentage }};"></div></div><div class="category-amount income">+{{ "%.0f"|format(cat.total) }}</div></div>{% endfor %}{% else %}<div class="no-category">暂无收入</div>{% endif %}</div>
+            </div>
+            <div class="category-ranking">
+                <div class="ranking-header">
+                    <div class="ranking-title expense">支出 <span class="float-right">-{{ "%.0f"|format(total_expense) }} <span class="stat-value {% if balance >= 0 %}income{% else %}expense{% endif %}" style="padding-left:10px;">结余：{% if balance >= 0 %}+{% endif %}{{ "%.0f"|format(balance) }}</span></span></div>
+                </div>
+                <div class="category-list">{% if expense_categories %}{% for cat in expense_categories %}<div class="category-item"><div class="category-info"><span class="category-name type-{{ cat.type[:2] }}">{{ cat.type }}</span></div><div class="category-bar"><div class="bar-fill expense-bar" style="--width: {{ cat.percentage }};"></div></div><div class="category-amount expense">-{{ "%.0f"|format(cat.total) }}</div></div>{% endfor %}{% else %}<div class="no-category">暂无支出</div>{% endif %}</div>
+            </div>
+        </div>
+    </div>
+    <div class="compact-form-section">
+        <div class="quick-add-form">
+            <form id="money-record-form" onsubmit="return false;">
+                <div class="form-grid" style="display:grid;grid-template-columns:1fr .8fr 1.2fr 2fr 40px;gap:6px;margin-bottom:8px">
+                    <input type="text" id="text" name="text" placeholder="描述" required class="compact-input desc-input">
+                    <input type="number" step="1" id="money" name="money" placeholder="金额" required class="compact-input money-input" >
+                    <input type="date" id="time" name="time" value="{{ now }}" required class="compact-input date-input" style="min-width:120px">
+                    <div class="radio-group" id="type-radio-group">
+                        <label class="radio-option"><input type="radio" name="type" value="收入" required><span class="radio-label">收入</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="饮食"><span class="radio-label">饮食</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="奶昔"><span class="radio-label">奶昔</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="外食"><span class="radio-label">外食</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="交通"><span class="radio-label">交通</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="日用"><span class="radio-label">日用</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="娱乐"><span class="radio-label">娱乐</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="基建"><span class="radio-label">基建</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="房贷"><span class="radio-label">房贷</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="赞助"><span class="radio-label">赞助</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="医疗"><span class="radio-label">医疗</span></label>
+                        <label class="radio-option"><input type="radio" name="type" value="其他"><span class="radio-label">其他</span></label>
+                    </div>
+                    <button type="button" onclick="addMoneyRecord()" class="add-btn" id="addBtn" style="background:#fff;color:#333;border:1px solid #ddd;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;height:30px;display:flex;align-items:center;justify-content:center">添加</button>
+                </div>
+            </form>
+        </div>
+        <div class="compact-filters">
+            <form method="get" action="{{ url_for('qian') }}" class="filter-grid" id="search-form">
+                <select name="year" class="filter-select"><option value="">所有年份</option>{% for year in available_years %}<option value="{{ year }}" {% if current_year==year %}selected{% endif %}>{{ year }}</option>{% endfor %}</select>
+                <select name="month" class="filter-select"><option value="">所有月份</option>{% for month in available_months %}<option value="{{ month }}" {% if current_month==month %}selected{% endif %}>{{ month|int }}月</option>{% endfor %}</select>
+                <select name="type" class="filter-select" id="typeSelect"><option value="">所有类型</option>{% for type in available_types %}<option value="{{ type }}" {% if current_type==type %}selected{% endif %}>{{ type }}</option>{% endfor %}</select>
+                <select name="sort" class="filter-select"><option value="desc" {% if sort_order=='desc' %}selected{% endif %}>新→旧</option><option value="asc" {% if sort_order=='asc' %}selected{% endif %}>旧→新</option></select>
+                <div class="keyword-search-wrapper"><input type="text" name="keyword" id="keyword" placeholder="搜索..." value="{{ keyword or '' }}" class="keyword-input"></div>
+                <button type="button" onclick="toggleSpecial()" class="special-toggle-btn {% if show_special == 'false' %}active{% endif %}">{% if show_special == 'true' %}隐藏房贷/赞助{% else %}显示房贷/赞助{% endif %}</button>
+                <input type="hidden" name="show_special" id="show_special" value="{{ show_special }}">
+                <button type="submit" class="filter-apply-btn">筛选</button>
+                <a href="{{ url_for('qian') }}" class="filter-reset-btn">重置</a>
+            </form>
+            <div class="filter-stats" id="filterStats">
+    {% set total_display_count = namespace(value=0) %}
+    {% for year, year_data in grouped_records.items() %}{% for month, month_data in year_data.months.items() %}{% for day, day_data in month_data.days.items() %}{% set total_display_count.value = total_display_count.value + day_data.records|length %}{% endfor %}{% endfor %}{% endfor %}
+    {% if current_type or keyword or (show_special == 'false') %}
+    <div class="search-info">筛选结果: <strong class="filter-count">{{ total_display_count.value }}</strong> 条记录{% if current_type %}<span class="filter-badge">分类: {{ current_type }}</span>{% endif %}{% if keyword %}<span class="filter-badge">关键词: "{{ keyword }}"</span>{% endif %}{% if show_special == 'false' %}<span class="filter-badge">隐藏房贷/赞助</span>{% endif %}</div>
+    {% elif total_display_count.value > 0 %}
+    <div class="search-info">共 <strong class="filter-count">{{ total_display_count.value }}</strong> 条记录</div>
+    {% endif %}
+    <a href="{{ url_for('export_money_page') }}" class="export-link" style="display:inline-block;margin-top:8px;background:#7B3F00;color:#fff;padding:4px 12px;border-radius:4px;text-decoration:none;font-size:12px;">数据导出</a>
+</div>
+            {% if show_special == 'false' %}<div class="special-hint">隐藏了【房贷】【赞助】</div>{% endif %}
+        </div>
+    </div>
+    {% macro format_money(amount) %}{% if amount > 0 %}+{% endif %}{{ "%.0f"|format(amount) }}{% endmacro %}
+    <div class="compact-records-container">
+        {% if grouped_records %}
+            {% for year, year_data in grouped_records.items() %}
+                <div class="compact-year-group">
+                    <div class="compact-year-header"><span class="year-label">{{ year_data.name }}</span><span class="year-summary"><span class="total-amount {% if year_data.total >= 0 %}income{% else %}expense{% endif %}">{{ format_money(year_data.total) }}</span><span class="income-expense-stats">(收:{{ "%.0f"|format(year_data.income_total) }} 支:{{ "%.0f"|format(year_data.expense_total) }})</span></span></div>
+                    {% for month, month_data in year_data.months.items() %}
+                        <div class="compact-month-group">
+                            <div class="compact-month-header"><span class="month-label">{{ month_data.name }}</span><span class="month-summary"><span class="total-amount {% if month_data.total >= 0 %}income{% else %}expense{% endif %}">{{ format_money(month_data.total) }}</span><span class="income-expense-stats small">(收:{{ "%.0f"|format(month_data.income_total) }} 支:{{ "%.0f"|format(month_data.expense_total) }})</span></span></div>
+                            {% for day, day_data in month_data.days.items() %}
+                                <div class="compact-day-group">
+                                    <div class="day-header-line"><span class="day-date">{{ year }}-{{ day_data.date[5:] }}<span class="day-total"><span class="total-amount small {% if day_data.total >= 0 %}income{% else %}expense{% endif %}">{{ format_money(day_data.total) }}</span></span></span>{% if keyword %}<span class="day-match-count">{{ day_data.records|length }}条</span>{% endif %}</div>
+                                    <div class="record-items">
+                                        {% for record in day_data.records %}
+                                            <div class="compact-record {% if keyword and (keyword.lower() in record.text.lower() or keyword.lower() in record.type.lower()) %}highlight-match{% endif %}" data-id="{{ record.id }}">
+                                                <div class="record-line"><span class="record-meta"><span class="record-type-tag type-{{ record.type[:2] }}" data-type="{{ record.type }}">{{ record.type }}</span><span class="record-desc">{% if keyword and keyword.lower() in record.text.lower() %}{% set highlighted = record.text | replace(keyword, '██' + keyword + '██') %}{% set parts = highlighted.split('██') %}{% for part in parts %}{% if loop.index is even %}<mark>{{ part }}</mark>{% else %}{{ part }}{% endif %}{% endfor %}{% else %}{{ record.text }}{% endif %}</span><span class="record-amount {% if record.money > 0 %}income{% else %}expense{% endif %}">{{ format_money(record.money) }}</span></span><span class="record-actions"><button class="tiny-delete-btn" onclick="deleteMoneyRecord('{{ record.id }}')" title="删除">×</button></span></div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state"><div class="empty-icon"></div><p>{% if keyword %}无"{{ keyword }}"记录{% else %}暂无记录{% endif %}</p></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+:root{--c-in:#f44336;--c-diet:#FF6B35;--c-naixi:#C4A882;--c-waishi:#ff9800;--c-traffic:#2196f3;--c-daily:#9c27b0;--c-play:#e91e63;--c-infra:#00bcd4;--c-house:#00897b;--c-sponsor:#ff6b6b;--c-medical:#39a119;--c-other:#9e9e9e;--c-expense:#388e3c}
+*{box-sizing:border-box}
+.stats-section{background:#fff;border-radius:8px;padding:12px;margin-bottom:16px;border:1px solid #e0e0e0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.category-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.category-ranking{border:1px solid #eee;border-radius:4px;padding:8px;background:#fafafa}
+.ranking-header{display:flex;align-items:center;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd}
+.ranking-title{font-size:12px;font-weight:600;width:100%}.ranking-title.income{color:var(--c-in)}.ranking-title.expense{color:var(--c-expense)}
+.category-list{display:flex;flex-direction:column;gap:6px}
+.category-item{display:grid;grid-template-columns:70px 1fr 50px;align-items:center;gap:6px;font-size:11px}
+.category-name{font-size:10px;padding:1px 4px;border-radius:2px;font-weight:500;white-space:nowrap;border:1px solid!important;overflow:hidden;text-overflow:ellipsis}
+.category-name.type-收入{border-color:var(--c-in)!important;color:var(--c-in)!important}
+.category-name.type-饮食{border-color:var(--c-diet)!important;color:var(--c-diet)!important}
+.category-name.type-奶昔{border-color:var(--c-naixi)!important;color:var(--c-naixi)!important}
+.category-name.type-外食{border-color:var(--c-waishi)!important;color:var(--c-waishi)!important}
+.category-name.type-交通{border-color:var(--c-traffic)!important;color:var(--c-traffic)!important}
+.category-name.type-日用{border-color:var(--c-daily)!important;color:var(--c-daily)!important}
+.category-name.type-娱乐{border-color:var(--c-play)!important;color:var(--c-play)!important}
+.category-name.type-基建{border-color:var(--c-infra)!important;color:var(--c-infra)!important}
+.category-name.type-房贷{border-color:var(--c-house)!important;color:var(--c-house)!important}
+.category-name.type-赞助{border-color:var(--c-sponsor)!important;color:var(--c-sponsor)!important}
+.category-name.type-医疗{border-color:var(--c-medical)!important;color:var(--c-medical)!important}
+.category-name.type-其他{border-color:var(--c-other)!important;color:var(--c-other)!important}
+.category-bar{height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width .3s;width:calc(var(--width)*1%)}
+.bar-fill.income-bar{background:var(--c-in)}.bar-fill.expense-bar{background:var(--c-expense)}
+.category-amount{font-size:11px;font-weight:600;font-family:monospace;text-align:right;white-space:nowrap}
+.category-amount.income{color:var(--c-in)}.category-amount.expense{color:var(--c-expense)}
+.no-category{font-size:11px;color:#999;text-align:center;padding:8px;background:#fafafa;border-radius:4px}
+.radio-group{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:2px}
+.radio-option{display:flex;align-items:center;cursor:pointer;transition:opacity .2s}.radio-option:hover{opacity:.8}
+.radio-option input[type="radio"]{display:none}
+.radio-label{font-size:11px;padding:3px 8px;border-radius:2px;color:#555!important;transition:all .2s;white-space:nowrap;background:#fff!important;border:1px solid!important}
+.radio-option input[type="radio"][value="收入"]+.radio-label{border-color:var(--c-in)!important;color:var(--c-in)!important}
+.radio-option input[type="radio"][value="收入"]:checked+.radio-label{background:var(--c-in)!important;color:#fff!important}
+.radio-option input[type="radio"][value="饮食"]+.radio-label{border-color:var(--c-diet)!important;color:var(--c-diet)!important}
+.radio-option input[type="radio"][value="饮食"]:checked+.radio-label{background:var(--c-diet)!important;color:#fff!important}
+.radio-option input[type="radio"][value="奶昔"]+.radio-label{border-color:var(--c-naixi)!important;color:var(--c-naixi)!important}
+.radio-option input[type="radio"][value="奶昔"]:checked+.radio-label{background:var(--c-naixi)!important;color:#fff!important}
+.radio-option input[type="radio"][value="外食"]+.radio-label{border-color:var(--c-waishi)!important;color:var(--c-waishi)!important}
+.radio-option input[type="radio"][value="外食"]:checked+.radio-label{background:var(--c-waishi)!important;color:#fff!important}
+.radio-option input[type="radio"][value="交通"]+.radio-label{border-color:var(--c-traffic)!important;color:var(--c-traffic)!important}
+.radio-option input[type="radio"][value="交通"]:checked+.radio-label{background:var(--c-traffic)!important;color:#fff!important}
+.radio-option input[type="radio"][value="日用"]+.radio-label{border-color:var(--c-daily)!important;color:var(--c-daily)!important}
+.radio-option input[type="radio"][value="日用"]:checked+.radio-label{background:var(--c-daily)!important;color:#fff!important}
+.radio-option input[type="radio"][value="娱乐"]+.radio-label{border-color:var(--c-play)!important;color:var(--c-play)!important}
+.radio-option input[type="radio"][value="娱乐"]:checked+.radio-label{background:var(--c-play)!important;color:#fff!important}
+.radio-option input[type="radio"][value="基建"]+.radio-label{border-color:var(--c-infra)!important;color:var(--c-infra)!important}
+.radio-option input[type="radio"][value="基建"]:checked+.radio-label{background:var(--c-infra)!important;color:#fff!important}
+.radio-option input[type="radio"][value="房贷"]+.radio-label{border-color:var(--c-house)!important;color:var(--c-house)!important}
+.radio-option input[type="radio"][value="房贷"]:checked+.radio-label{background:var(--c-house)!important;color:#fff!important}
+.radio-option input[type="radio"][value="赞助"]+.radio-label{border-color:var(--c-sponsor)!important;color:var(--c-sponsor)!important}
+.radio-option input[type="radio"][value="赞助"]:checked+.radio-label{background:var(--c-sponsor)!important;color:#fff!important}
+.radio-option input[type="radio"][value="医疗"]+.radio-label{border-color:var(--c-medical)!important;color:var(--c-medical)!important}
+.radio-option input[type="radio"][value="医疗"]:checked+.radio-label{background:var(--c-medical)!important;color:#fff!important}
+.radio-option input[type="radio"][value="其他"]+.radio-label{border-color:var(--c-other)!important;color:var(--c-other)!important}
+.radio-option input[type="radio"][value="其他"]:checked+.radio-label{background:var(--c-other)!important;color:#fff!important}
+.record-type-tag{font-size:9px;padding:2px 6px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0;background:#fff!important;border:1px solid!important}
+.record-type-tag[data-type="收入"],.record-type-tag.type-收入,.record-type-tag[class*="type-收入"]{border-color:var(--c-in)!important;color:var(--c-in)!important}
+.record-type-tag[data-type="饮食"],.record-type-tag.type-饮食,.record-type-tag[class*="type-饮食"]{border-color:var(--c-diet)!important;color:var(--c-diet)!important}
+.record-type-tag[data-type="奶昔"],.record-type-tag.type-奶昔,.record-type-tag[class*="type-奶昔"]{border-color:var(--c-naixi)!important;color:var(--c-naixi)!important}
+.record-type-tag[data-type="外食"],.record-type-tag.type-外食,.record-type-tag[class*="type-外食"]{border-color:var(--c-waishi)!important;color:var(--c-waishi)!important}
+.record-type-tag[data-type="交通"],.record-type-tag.type-交通,.record-type-tag[class*="type-交通"]{border-color:var(--c-traffic)!important;color:var(--c-traffic)!important}
+.record-type-tag[data-type="日用"],.record-type-tag.type-日用,.record-type-tag[class*="type-日用"]{border-color:var(--c-daily)!important;color:var(--c-daily)!important}
+.record-type-tag[data-type="娱乐"],.record-type-tag.type-娱乐,.record-type-tag[class*="type-娱乐"]{border-color:var(--c-play)!important;color:var(--c-play)!important}
+.record-type-tag[data-type="基建"],.record-type-tag.type-基建,.record-type-tag[class*="type-基建"]{border-color:var(--c-infra)!important;color:var(--c-infra)!important}
+.record-type-tag[data-type="房贷"],.record-type-tag.type-房贷,.record-type-tag[class*="type-房贷"]{border-color:var(--c-house)!important;color:var(--c-house)!important}
+.record-type-tag[data-type="赞助"],.record-type-tag.type-赞助,.record-type-tag[class*="type-赞助"]{border-color:var(--c-sponsor)!important;color:var(--c-sponsor)!important}
+.record-type-tag[data-type="医疗"],.record-type-tag.type-医疗,.record-type-tag[class*="type-医疗"]{border-color:var(--c-medical)!important;color:var(--c-medical)!important}
+.record-type-tag[data-type="其他"],.record-type-tag.type-其他,.record-type-tag[class*="type-其他"]{border-color:var(--c-other)!important;color:var(--c-other)!important}
+.compact-records-container{overflow-y:auto}
+.compact-records-container::-webkit-scrollbar{width:4px}
+.compact-records-container::-webkit-scrollbar-track{background:#f1f1f1}
+.compact-records-container::-webkit-scrollbar-thumb{background:#ccc}
+.compact-records-container::-webkit-scrollbar-thumb:hover{background:#aaa}
+.record-amount{font-family:monospace;letter-spacing:-.5px}
+.income{color:var(--c-in)}.expense{color:var(--c-expense)}
+.total-amount.income{color:#b71c1c}.total-amount.expense{color:#1b5e20}
+.compact-filters{padding-top:8px;border-top:1px solid #e0e0e0}
+.filter-grid{display:grid;grid-template-columns:repeat(4,1fr) 2fr auto auto auto;gap:6px;align-items:center}
+.filter-select{padding:4px 6px;border:1px solid #e0e0e0;border-radius:4px;font-size:11px;height:26px;background:#fff;cursor:pointer}
+.filter-apply-btn,.filter-reset-btn,.special-toggle-btn{padding:4px 8px;background:#fff;color:#333;border:1px solid #ddd;border-radius:4px;font-size:11px;height:26px;cursor:pointer;transition:all .2s;text-decoration:none;white-space:nowrap}
+.filter-apply-btn:hover,.filter-reset-btn:hover,.special-toggle-btn:hover{background:#e0e0e0;border-color:#999}
+.special-toggle-btn.active{background:#f2f2f2;border-color:#bbb}
+.keyword-search-wrapper{flex:1;min-width:150px}
+.keyword-input{width:100%;padding:4px 8px;border:1px solid #e0e0e0;border-radius:4px;font-size:11px;height:26px;background:#fff}
+.keyword-input:focus{outline:none;border-color:#7B3F00;box-shadow:0 0 0 2px rgba(123,63,0,.1)}
+.filter-stats{margin-top:10px}
+.search-info{margin-top:8px;font-size:12px;color:#555;padding:6px 10px;background:#f5f5f5;border-radius:6px;display:inline-block}
+.filter-count{color:#7B3F00;font-size:14px;margin:0 2px}
+.filter-badge{display:inline-block;background:#fff;border:1px solid #ddd;border-radius:12px;padding:2px 8px;font-size:11px;margin-left:8px;color:#666}
+.day-match-count{font-size:10px;color:#999;background:#f5f5f5;padding:2px 6px;border-radius:10px;margin-left:8px}
+.compact-record.highlight-match{background-color:#fff9e6}
+.record-desc mark{background-color:#ffeb3b;padding:0}
+.special-hint{margin-top:8px;font-size:11px;padding:4px 8px;background:#fff3e0;border-left:3px solid #ff9800;color:#666}
+.compact-year-group{border-bottom:1px solid #e0e0e0}.compact-year-group:last-child{border-bottom:none}
+.compact-year-header{padding:8px 12px;display:flex;justify-content:space-between;align-items:center}
+.year-label{font-size:14px;font-weight:700;color:#7B3F00}
+.year-summary{display:flex;align-items:center;gap:8px}
+.year-summary .total-amount{font-size:14px;font-weight:700}
+.income-expense-stats{font-size:11px;color:#666;margin-left:4px;font-weight:400;white-space:nowrap}
+.income-expense-stats.small{font-size:10px;color:#888}
+.compact-month-group{margin:0;padding:0 12px;border-bottom:1px solid #f5f5f5}.compact-month-group:last-child{border-bottom:none;padding-bottom:5px}
+.compact-month-header{padding:6px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed #eee;margin-bottom:4px}
+.month-label{font-size:13px;font-weight:600;color:#555}
+.month-summary{display:flex;align-items:center;gap:8px}
+.month-summary .total-amount{font-size:13px;font-weight:600}
+.compact-day-group{padding:4px 0;border-bottom:1px solid #fafafa}.compact-day-group:last-child{border-bottom:none}
+.day-header-line{display:flex;justify-content:space-between;align-items:center;padding:2px 4px;margin-bottom:2px}
+.day-date{font-size:11px;color:#888;font-weight:500}
+.day-total .total-amount.small{font-size:11px;font-weight:600;margin-left:4px}
+.record-items{margin-left:8px}
+.compact-record{border-radius:3px;transition:background .2s}.compact-record:hover{background:#f5f5f5}
+.record-line{display:flex;justify-content:space-between;align-items:center;min-height:24px}
+.record-meta{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden}
+.record-desc{font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.record-amount{font-size:12px;font-weight:600;min-width:50px;opacity:.7}
+
+body.dark-mode .stats-section{background:#242424;border-color:#444}
+body.dark-mode .category-ranking{background:#2a2a2a;border-color:#444}
+body.dark-mode .ranking-header{border-bottom-color:#444}
+body.dark-mode .category-bar{background:#3a3a3a}
+body.dark-mode .no-category{background:#2a2a2a;color:#999}
+body.dark-mode .radio-label{background:#333!important;color:#ccc!important}
+body.dark-mode .record-type-tag{background:#333!important}
+body.dark-mode .compact-filters{border-top-color:#444}
+body.dark-mode .filter-select{background:#333;color:#e0e0e0;border-color:#444}
+body.dark-mode .filter-apply-btn,body.dark-mode .filter-reset-btn,body.dark-mode .special-toggle-btn{background:#333;color:#ccc;border-color:#555}
+body.dark-mode .filter-apply-btn:hover,body.dark-mode .filter-reset-btn:hover,body.dark-mode .special-toggle-btn:hover{background:#444;border-color:#888}
+body.dark-mode .special-toggle-btn.active{background:#3a3a3a;border-color:#888}
+body.dark-mode .keyword-input{background:#333;color:#e0e0e0;border-color:#444}
+body.dark-mode .keyword-input:focus{border-color:#a0522d;box-shadow:0 0 0 2px rgba(160,82,45,.3)}
+body.dark-mode .search-info{background:#2a2a2a;color:#ccc}
+body.dark-mode .filter-badge{background:#333;border-color:#555;color:#ccc}
+body.dark-mode .filter-count{color:#c4956a}
+body.dark-mode .special-hint{background:#2a2a0a;border-left-color:#ff9800;color:#ccc}
+body.dark-mode .day-match-count{background:#333;color:#aaa}
+body.dark-mode .compact-record:hover{background:#2a2a2a}
+body.dark-mode .compact-record.highlight-match{background-color:#3a3520}
+body.dark-mode .record-desc mark{background-color:#665500;color:#fff}
+body.dark-mode .compact-year-group{border-bottom-color:#444}
+body.dark-mode .compact-month-group{border-bottom-color:#333}
+body.dark-mode .compact-month-header{border-bottom-color:#3a3a3a}
+body.dark-mode .compact-day-group{border-bottom-color:#2a2a2a}
+body.dark-mode .day-date{color:#aaa}
+body.dark-mode .month-label{color:#ccc}
+body.dark-mode .income-expense-stats{color:#aaa}
+body.dark-mode .income-expense-stats.small{color:#999}
+body.dark-mode .record-desc{color:#ddd}
+body.dark-mode .record-amount{opacity:.9}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let isSubmitting = false;
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+document.addEventListener('DOMContentLoaded', () => {
+    $('#money')?.focus();
+    $('input[name="type"]')?.click();
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('#money-record-form')) { e.preventDefault(); addMoneyRecord(); }
+});
+
+async function addMoneyRecord() {
+    if (isSubmitting) return;
+    const time = $('#time').value, money = parseFloat($('#money').value), text = $('#text').value.trim(), type = $('input[name="type"]:checked')?.value ?? '';
+    if (!time) return alert('请选择日期');
+    if (isNaN(money)) return alert('请输入金额');
+    if (!text) return alert('请输入描述');
+    if (!type) return alert('请选择分类');
+    const btn = $('#addBtn');
+    isSubmitting = true; btn.classList.add('disabled'); btn.textContent = '提交中...';
+    try {
+        const res = await fetch('/add_money_record', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({time, money:Math.round(money), text, type}) });
+        const d = await res.json();
+        d.success ? location.reload() : (alert('失败：'+d.message), isSubmitting=false, btn.classList.remove('disabled'), btn.textContent='添加');
+    } catch { alert('添加失败'); isSubmitting=false; btn.classList.remove('disabled'); btn.textContent='添加'; }
+}
+
+async function deleteMoneyRecord(id) {
+    if (!confirm('确定删除？')) return;
+    try { const res = await fetch('/delete_money_record/'+id, { method:'POST' }); const d = await res.json(); d.success ? location.reload() : alert('删除失败'); }
+    catch { alert('删除失败'); }
+}
+
+$('#money')?.addEventListener('blur', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) e.target.value = Math.round(v); });
+$$('.radio-option').forEach(l => l.addEventListener('click', () => l.querySelector('input[type="radio"]').checked = true));
+
+const toggleSpecial = () => { const i = $('#show_special'); i.value = i.value === 'true' ? 'false' : 'true'; $('#search-form').submit(); };
+</script>
+{% endblock %}

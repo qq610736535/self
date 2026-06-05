@@ -1,0 +1,11 @@
+# Web框架
+Flask==2.3.3
+
+# 时区处理
+pytz==2024.1
+
+# Markdown转HTML
+markdown==3.10.2
+
+# 图片处理
+Pillow==12.2.0

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}图片{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="compact-form-section">
+        <div class="form-grid">
+            <input type="file" id="fileInput" accept="image/*" style="display:none">
+            <label for="fileInput" class="add-btn" style="width:auto;padding:6px 16px">选择</label>
+            <span id="fileName" style="font-size:12px;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:32px"></span>
+            <input type="date" id="photo_date" value="{{ today }}" class="compact-input date-input">
+            <input type="text" id="note" placeholder="备注" class="compact-input desc-input">
+            <button type="button" onclick="uploadPhoto()" class="add-btn" style="width:auto;padding:6px 16px">上传</button>
+        </div>
+    </div>
+
+    <div class="photo-panel" id="photoPanel">
+        {% if photos %}
+        <div class="photo-grid">
+            {% for p in photos %}
+            <div class="photo-card">
+                <a href="{{ url_for('photo_view', photo_id=p.id) }}" target="_blank">
+                    <img src="{{ url_for('photo_view', photo_id=p.id) }}" alt="{{ p.filename }}" loading="lazy">
+                </a>
+                <div class="photo-info">
+                    <div class="photo-meta">{{ p.photo_date }}</div>
+                    {% if p.note %}<div class="photo-note">{{ p.note }}</div>{% endif %}
+                    <button class="note-del" onclick="deletePhoto('{{ p.id }}')" style="margin-top:6px">删除</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-record" style="text-align:center;padding:60px" id="emptyMsg">暂无图片</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.photo-panel{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:15px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.photo-card{background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0}
+.photo-card img{width:100%;height:200px;object-fit:cover;display:block}
+.photo-info{padding:10px 12px}
+.photo-meta{font-size:11px;color:#999;margin-bottom:4px}
+.photo-note{font-size:12px;color:#666;line-height:1.5}
+
+body.dark-mode .photo-panel{background:#242424;border-color:#444}
+body.dark-mode .photo-card{background:#242424;border-color:#444}
+body.dark-mode .photo-note{color:#aaa}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $ = sel => document.querySelector(sel);
+
+$('#fileInput').addEventListener('change', function() {
+    $('#fileName').textContent = this.files[0]?.name ?? '';
+});
+
+async function uploadPhoto() {
+    const file = $('#fileInput').files[0];
+    if (!file) return alert('请选择图片');
+    const fd = new FormData();
+    fd.append('photo', file);
+    fd.append('photo_date', $('#photo_date').value);
+    fd.append('note', $('#note').value);
+    try {
+        const res = await fetch('/tupian/upload', { method:'POST', body:fd });
+        const d = await res.json();
+        if (d.success) {
+            // 去掉空状态提示
+            const empty = $('#emptyMsg');
+            if (empty) empty.remove();
+            
+            // 动态插入新卡片
+            const grid = document.querySelector('.photo-grid') || (() => {
+                const g = document.createElement('div');
+                g.className = 'photo-grid';
+                $('#photoPanel').prepend(g);
+                return g;
+            })();
+            
+            const card = document.createElement('div');
+            card.className = 'photo-card';
+            card.innerHTML = `<a href="/tupian/${d.id || ''}" target="_blank"><img src="/tupian/${d.id || ''}" alt="${file.name}" loading="lazy"></a>
+                <div class="photo-info"><div class="photo-meta">${$('#photo_date').value}</div>
+                ${$('#note').value ? `<div class="photo-note">${$('#note').value}</div>` : ''}
+                <button class="note-del" style="margin-top:6px">删除</button></div>`;
+            grid.prepend(card);
+            
+            // 清空
+            $('#fileInput').value = '';
+            $('#fileName').textContent = '';
+            $('#note').value = '';
+        } else {
+            alert('失败：'+d.message);
+        }
+    } catch { alert('上传失败'); }
+}
+
+async function deletePhoto(id) {
+    if (!confirm('确定删除？')) return;
+    try {
+        const res = await fetch('/tupian/delete/'+id, { method:'POST' });
+        const d = await res.json();
+        d.success ? location.reload() : alert('删除失败');
+    } catch { alert('删除失败'); }
+}
+</script>
+{% endblock %}
