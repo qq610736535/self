@@ -41,7 +41,7 @@
                         <label class="radio-option"><input type="radio" name="type" value="医疗"><span class="radio-label">医疗</span></label>
                         <label class="radio-option"><input type="radio" name="type" value="其他"><span class="radio-label">其他</span></label>
                     </div>
-                    <button type="button" onclick="addMoneyRecord()" class="add-btn" id="addBtn" style="background:#fff;color:#333;border:1px solid #ddd;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;height:30px;display:flex;align-items:center;justify-content:center">添加</button>
+                    <button type="button" onclick="addMoneyRecord()" class="add-btn" id="addBtn">添加</button>
                 </div>
             </form>
         </div>
@@ -160,6 +160,32 @@
 .radio-option input[type="radio"][value="医疗"]:checked+.radio-label{background:var(--c-medical)!important;color:#fff!important}
 .radio-option input[type="radio"][value="其他"]+.radio-label{border-color:var(--c-other)!important;color:var(--c-other)!important}
 .radio-option input[type="radio"][value="其他"]:checked+.radio-label{background:var(--c-other)!important;color:#fff!important}
+
+/* 添加按钮样式 */
+.add-btn {
+    background: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    transition: all 0.2s;
+}
+
+.add-btn:hover {
+    background: #f0f0f0;
+}
+
+.add-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .record-type-tag{font-size:9px;padding:2px 6px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0;background:#fff!important;border:1px solid!important}
 .record-type-tag[data-type="收入"],.record-type-tag.type-收入,.record-type-tag[class*="type-收入"]{border-color:var(--c-in)!important;color:var(--c-in)!important}
 .record-type-tag[data-type="饮食"],.record-type-tag.type-饮食,.record-type-tag[class*="type-饮食"]{border-color:var(--c-diet)!important;color:var(--c-diet)!important}
@@ -220,6 +246,17 @@
 .record-meta{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden}
 .record-desc{font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .record-amount{font-size:12px;font-weight:600;min-width:50px;opacity:.7}
+
+/* 夜间模式样式 */
+body.dark-mode .add-btn {
+    background: var(--primary-color);
+    color: #ccc;
+}
+
+body.dark-mode .add-btn:hover {
+    background: #444;
+    border-color: #888;
+}
 
 body.dark-mode .stats-section{background:#242424;border-color:#444}
 body.dark-mode .category-ranking{background:#2a2a2a;border-color:#444}

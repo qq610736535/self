@@ -84,7 +84,9 @@ let currentDate = today;
 
 const foodPresets = [
     '流食：250ml全脂牛奶+一根香蕉+花生芝麻酱(花生80%)+燕麦',
-    '正餐：外食'
+    '正餐：家里吃',
+    '正餐：外食',
+    '米糊（70g碳水左右）'
 ];
 
 const W = 600, H = 350, PL = 50, PR = 30, PT = 40, PB = 50;
@@ -222,7 +224,8 @@ const selectDate = date => {
     if (currentDate === date) return;
     currentDate = date;
     document.querySelectorAll('.data-point').forEach(p => p.classList.toggle('active', p.dataset.date === date));
-    document.getElementById('recordDate').value = date;
+    // 鼠标悬停时不再更新日期输入框
+    // document.getElementById('recordDate').value = date;
     loadDetail(date);
 };
 
