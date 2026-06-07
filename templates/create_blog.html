@@ -2,121 +2,159 @@
 
 {% block title %}写文章{% endblock %}
 
-{% block content %}
-<div style="max-width: 900px; margin: 0 auto;">
-    <div style="margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
-        <h1 style="font-size: 20px; margin: 0; color: #2c3e50;">写文章</h1>
-    </div>
-
-    <form action="{{ url_for('add_blog') }}" method="POST" enctype="multipart/form-data">
-        <div style="margin-bottom: 16px;">
-            <input type="text" name="title" class="form-control" required maxlength="100"
-                   placeholder="标题"
-                   style="width: 100%; padding: 8px 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 20px; box-sizing: border-box;">
-        </div>
-
-        <div style="margin-bottom: 16px;">
-            <textarea name="content" class="form-control" required
-                      placeholder="文章内容（支持 Markdown）"
-                      style="width: 100%; min-height: 380px; padding: 12px; font-size: 14px; line-height: 1.6; 
-                             border: 1px solid #ddd; border-radius: 20px; resize: vertical; 
-                             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;"></textarea>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee;">
-            <a href="{{ url_for('blogs_index') }}" 
-               style="padding: 6px 18px; font-size: 13px; color: #666; background-color: #f8f9fa; 
-                      border: 1px solid #ddd; border-radius: 20px; text-decoration: none; 
-                      transition: all 0.2s; display: inline-block;">
-                取消
-            </a>
-            <button type="submit" 
-                    style="padding: 6px 12px; font-size: 13px; color: #fff; background-color: #7b3f00; 
-                           border: none; border-radius: 20px; cursor: pointer; font-weight: 500;
-                           transition: all 0.2s; display: inline-block;">
-                发布
-            </button>
-        </div>
-    </form>
-</div>
-
+{% block extra_css %}
 <style>
-/* 覆盖 base.html 中的全局样式 */
-.form-control {
+/* 写文章页面样式 */
+.write-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.write-header {
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+}
+
+.write-header h1 {
+    font-size: 20px;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.blog-title-input {
     width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    box-sizing: border-box;
+    background: var(--bg-color);
+    color: var(--text-color);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.blog-title-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(123, 63, 0, 0.1);
+}
+
+.blog-content-textarea {
+    width: 100%;
+    min-height: 380px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    resize: vertical;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+    background: var(--bg-color);
+    color: var(--text-color);
     box-sizing: border-box;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.form-control:focus {
+.blog-content-textarea:focus {
     outline: none;
-    border-color: #7b3f00 !important;
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(123, 63, 0, 0.1);
 }
 
-a[style*="background-color: #f8f9fa"]:hover {
-    background-color: #e9ecef !important;
-    border-color: #ccc !important;
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
 }
 
-button[style*="background-color: #7b3f00"]:hover {
-    background-color: #8f4e1a !important;
+.btn-cancel {
+    padding: 6px 18px;
+    font-size: 13px;
+    color: var(--text-color);
+    background-color: var(--hover-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    text-decoration: none;
+    transition: all 0.2s;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.btn-publish {
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #fff;
+    background-color: var(--primary-color);
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: inline-block;
+}
+
+.btn-publish:hover {
+    background-color: var(--primary-dark);
     box-shadow: 0 2px 8px rgba(123, 63, 0, 0.2);
 }
 
-@media (max-width: 768px) {
-    div[style*="max-width: 900px;"] {
-        padding: 0 20px;
-    }
-    
-    h1 {
-        font-size: 18px !important;
-    }
-    
-    textarea {
-        min-height: 350px !important;
-        font-size: 13px !important;
-    }
-    
-    input {
-        font-size: 13px !important;
-    }
-    
-    a, button {
-        font-size: 12px !important;
-        padding: 5px 16px !important;
-    }
+/* 暗黑模式特殊处理 */
+body.dark-mode .blog-title-input:focus,
+body.dark-mode .blog-content-textarea:focus {
+    box-shadow: 0 0 0 3px rgba(160, 82, 45, 0.3);
 }
-</style>
 
+body.dark-mode .btn-publish:hover {
+    box-shadow: 0 2px 8px rgba(160, 82, 45, 0.3);
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="write-container">
+    <div class="write-header">
+        <h1>写文章</h1>
+    </div>
+
+    <form action="{{ url_for('add_blog') }}" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <input type="text" name="title" class="blog-title-input" required maxlength="100" placeholder="标题">
+        </div>
+
+        <div class="form-group">
+            <textarea name="content" class="blog-content-textarea" required placeholder="文章内容（支持 Markdown）"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('blogs_index') }}" class="btn-cancel">取消</a>
+            <button type="submit" class="btn-publish">发布</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form');
-    const textarea = document.querySelector('textarea');
-    const titleInput = document.querySelector('input[name="title"]');
-    
-    // Ctrl/Cmd + Enter 快速提交
-    if (textarea) {
-        textarea.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                
-                if (!titleInput.value.trim()) {
-                    alert('请输入标题');
-                    titleInput.focus();
-                    return;
-                }
-                
-                if (!textarea.value.trim()) {
-                    alert('请输入文章内容');
-                    textarea.focus();
-                    return;
-                }
-                
-                form.submit();
-            }
-        });
-    }
+document.querySelector('.blog-content-textarea')?.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const ti = document.querySelector('.blog-title-input');
+    if (!ti.value.trim()) return ti.focus(), alert('请输入标题');
+    if (!e.target.value.trim()) return e.target.focus(), alert('请输入文章内容');
+    e.target.form.submit();
+  }
 });
 </script>
 {% endblock %}

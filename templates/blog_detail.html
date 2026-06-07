@@ -2,269 +2,154 @@
 
 {% block title %}{{ blog['title'] }}{% endblock %}
 
-{% block content %}
-<div style="display: flex; gap: 30px; min-height: 500px;">
-    <!-- 左侧导航 -->
-    <div style="width: 200px; flex-shrink: 0;">
-        <div style="position: sticky; top: 20px; height: calc(100vh - 40px); display: flex; flex-direction: column;">
-            <h3 style="margin-bottom: 15px; color: #7B3F00; font-size: 15px; flex-shrink: 0; font-weight: 600;">{{ blog['title'] }}</h3>
-            <div id="toc" style="font-size: 12.5px; line-height: 1.4; overflow-y: auto; flex: 1; padding-right: 5px;"></div>
-        </div>
-    </div>
-    
-    <!-- 右侧内容 -->
-    <div style="flex: 1; max-width: 970px;">
-        <!-- 归档提示条 -->
-        {% set is_archived = blog['is_archived'] if 'is_archived' in blog.keys() else 0 %}
-        {% if is_archived == 1 %}
-        <div style="background-color: #f9f9f9; border-left: 4px solid #7B3F00; padding: 10px 15px; margin-bottom: 20px; border-radius: 4px;">
-            <span style="color: #7B3F00;">🔖 该文章已归档，为只读状态</span>
-        </div>
-        {% endif %}
-        
-        <div id="blog-content" style="font-size: 16px; line-height: 1.7; margin-bottom: 40px;">
-            {{ blog['content'] | md | safe }}
-        </div>
-        
-        <div style="padding-top: 20px; border-top: 1px solid #e0e0e0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; color: #6c757d; font-size: 13px;">
-                <span>创建时间: {{ blog['created_at'] }}</span>
-                <div>
-                    {% if is_archived != 1 %}
-                    <a href="{{ url_for('edit_blog', blog_id=blog['id']) }}" style="color: #7B3F00; text-decoration: none; margin-right: 15px;">编辑</a>
-                    <form action="{{ url_for('delete_blog', blog_id=blog['id']) }}" method="POST" style="display: inline;">
-                        <button type="submit" onclick="return confirm('确定删除？')" style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-size: 13px;">删除</button>
-                    </form>
-                    {% else %}
-                    <span style="color: #999;">已归档，不可编辑删除</span>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 滚动按钮 -->
-<div style="position: fixed; bottom: 30px; right: 7px; display: flex; flex-direction: column; gap: 10px; z-index: 1000;">
-    <button onclick="window.scrollTo(0,0)" style="width: 20px; height: 20px; border-radius: 50%; opacity: .2; background: #3f3e3d; color: white; border: none; cursor: pointer;">↑</button>
-    <button onclick="window.scrollTo(0,document.body.scrollHeight)" style="width: 20px; height: 20px; border-radius: 50%; opacity: .2; background: #3f3e3d; color: white; border: none; cursor: pointer;">↓</button>
-</div>
-
+{% block extra_css %}
 <style>
-#blog-content h1, #blog-content h2, #blog-content h3, #blog-content h4 {
-    font-weight: 700;
-    scroll-margin-top: 20px;
-}
-#blog-content h1 { font-size: 1.7em; margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #eee; }
+.detail-wrapper { display: flex; gap: 30px; min-height: 500px; }
+
+/* 左侧目录 */
+.toc-sidebar { width: 200px; flex-shrink: 0; }
+.toc-sticky { position: sticky; top: 20px; height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.toc-title { margin-bottom: 15px; color: var(--primary-color); font-size: 15px; font-weight: 600; flex-shrink: 0; }
+#toc { font-size: 12.5px; line-height: 1.4; overflow-y: auto; flex: 1; padding-right: 5px; }
+#toc::-webkit-scrollbar { width: 4px; }
+#toc::-webkit-scrollbar-track { background: transparent; }
+#toc::-webkit-scrollbar-thumb { background: rgba(123,63,0,.2); border-radius: 2px; }
+#toc::-webkit-scrollbar-thumb:hover { background: rgba(123,63,0,.3); }
+
+.toc-link { text-decoration: none !important; color: var(--text-color) !important; display: block; }
+.toc-link.toc-active { color: var(--primary-color) !important; background: var(--primary-light) !important; border-radius: 3px; padding: 1px 4px; margin: -1px -4px; }
+body.dark-mode #toc .toc-link { color: #ccc !important; }
+body.dark-mode #toc .toc-link.toc-active { color: #c4956a !important; background: #3a2a1a !important; }
+body.dark-mode #toc::-webkit-scrollbar-thumb { background: rgba(160,82,45,.3); }
+.toc-h1 { font-weight: bold !important; }
+
+/* 右侧内容 */
+.detail-main { flex: 1; max-width: 970px; }
+
+.archive-notice { background: var(--hover-bg); border-left: 4px solid var(--primary-color); padding: 10px 15px; margin-bottom: 20px; border-radius: 4px; color: var(--primary-color); }
+
+#blog-content { font-size: 16px; line-height: 1.7; margin-bottom: 40px; }
+#blog-content h1, #blog-content h2, #blog-content h3, #blog-content h4 { font-weight: 700; scroll-margin-top: 20px; }
+#blog-content h1 { font-size: 1.7em; margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); }
 #blog-content h2 { font-size: 1.45em; margin: 26px 0 14px; }
 #blog-content h3 { font-size: 1.25em; margin: 24px 0 12px; }
 #blog-content h4 { font-size: 1.05em; margin: 22px 0 12px; }
 #blog-content p { margin-bottom: 1.2em; font-size: 16px; line-height: 1.7; }
 #blog-content pre { background: #f6f8fa; border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 14px; }
-#blog-content code { font-family: monospace; font-size: 14px; background: rgba(27,31,35,0.05); border-radius: 3px; padding: 0.2em 0.4em; }
+#blog-content code { font-family: monospace; font-size: 14px; background: rgba(27,31,35,.05); border-radius: 3px; padding: .2em .4em; }
 #blog-content pre code { background: none; padding: 0; }
-#blog-content blockquote { margin: 0; padding: 0 1em; color: #6a737d; border-left: 0.25em solid #dfe2e5; }
+#blog-content blockquote { margin: 0; padding: 0 1em; color: #6a737d; border-left: .25em solid #dfe2e5; }
 #blog-content ul, #blog-content ol { padding-left: 2em; margin-bottom: 1.2em; }
 #blog-content table { border-collapse: collapse; width: 100%; margin-bottom: 1.2em; }
 #blog-content th, #blog-content td { padding: 8px 12px; border: 1px solid #ddd; }
 #blog-content th { background: #f6f8fa; }
 #blog-content img { max-width: 100%; height: auto; border-radius: 4px; margin: 1em 0; }
-#toc::-webkit-scrollbar { width: 4px; }
-#toc::-webkit-scrollbar-track { background: transparent; }
-#toc::-webkit-scrollbar-thumb { background: rgba(123,63,0,0.2); border-radius: 2px; }
-#toc::-webkit-scrollbar-thumb:hover { background: rgba(123,63,0,0.3); }
-/* 目录样式 */
-.toc-h1 {
-    font-weight: bold !important;
-}
-.toc-h2, .toc-h3, .toc-h4 {
-    font-weight: normal !important;text-decoration: none !important;
-    color: #333 !important;
-}
-/* 去掉目录链接下划线 */
-#toc .toc-link {
-    text-decoration: none !important; color: #333 !important;
-}
 
-/* 白天模式高亮 */
-#toc .toc-link.toc-active {
-    color: #7B3F00 !important;
-    background-color: #F5E6D3 !important;
-}
+/* 暗黑模式 */
+body.dark-mode #blog-content pre { background: #2d2d2d; }
+body.dark-mode #blog-content code { background: rgba(255,255,255,.08); }
+body.dark-mode #blog-content pre code { background: none; }
+body.dark-mode #blog-content blockquote { color: #999; border-left-color: #555; }
+body.dark-mode #blog-content th { background: #333; }
+body.dark-mode #blog-content th, body.dark-mode #blog-content td { border-color: #444; }
+body.dark-mode #blog-content h1 { border-bottom-color: #444; }
+body.dark-mode .archive-notice { background: #2a2a2a; }
 
-/* 夜间模式 - 目录链接 */
-body.dark-mode #toc .toc-link {
-    color: #ccc !important;
-}
-/* 夜间模式 - 高亮 */
-body.dark-mode #toc .toc-link.toc-active {
-    color: #c4956a !important;
-    background-color: #3a2a1a !important;
-}
-/* 夜间模式 - 归档提示条 */
-body.dark-mode .archive-notice {
-    background-color: #2a2a2a !important;
-}
-/* 夜间模式 - 代码块 */
-body.dark-mode #blog-content pre {
-    background: #2d2d2d;
-}
-body.dark-mode #blog-content code {
-    background: rgba(255,255,255,0.08);
-}
-body.dark-mode #blog-content pre code {
-    background: none;
-}
-/* 夜间模式 - 引用块 */
-body.dark-mode #blog-content blockquote {
-    color: #999;
-    border-left-color: #555;
-}
-/* 夜间模式 - 表格 */
-body.dark-mode #blog-content th {
-    background: #333;
-}
-body.dark-mode #blog-content th,
-body.dark-mode #blog-content td {
-    border-color: #444;
-}
-/* 夜间模式 - 标题分割线 */
-body.dark-mode #blog-content h1 {
-    border-bottom-color: #444;
-}
+/* 文章底部 */
+.detail-footer { padding-top: 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; color: #6c757d; font-size: 13px; }
+.detail-footer a { color: var(--primary-color); text-decoration: none; margin-right: 15px; }
+.btn-del { background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-size: 13px; }
+
+/* 滚动按钮 */
+.scroll-btns { position: fixed; bottom: 30px; right: 7px; display: flex; flex-direction: column; gap: 10px; z-index: 1000; }
+.scroll-btns button { width: 20px; height: 20px; border-radius: 50%; opacity: .2; background: #3f3e3d; color: #fff; border: none; cursor: pointer; font-size: 10px; line-height: 1; }
 </style>
+{% endblock %}
 
+{% block content %}
+{% set is_archived = blog['is_archived'] if 'is_archived' in blog.keys() else 0 %}
+
+<div class="detail-wrapper">
+  <div class="toc-sidebar">
+    <div class="toc-sticky">
+      <div class="toc-title">{{ blog['title'] }}</div>
+      <div id="toc"></div>
+    </div>
+  </div>
+
+  <div class="detail-main">
+    {% if is_archived == 1 %}
+    <div class="archive-notice">🔖 该文章已归档，为只读状态</div>
+    {% endif %}
+
+    <div id="blog-content">{{ blog['content'] | md | safe }}</div>
+
+    <div class="detail-footer">
+      <span>创建时间: {{ blog['created_at'] }}</span>
+      <div>
+        {% if is_archived != 1 %}
+        <a href="{{ url_for('edit_blog', blog_id=blog['id']) }}">编辑</a>
+        <form action="{{ url_for('delete_blog', blog_id=blog['id']) }}" method="POST" style="display:inline">
+          <button type="submit" onclick="return confirm('确定删除？')" class="btn-del">删除</button>
+        </form>
+        {% else %}
+        <span style="color:#999">已归档，不可编辑删除</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scroll-btns">
+  <button onclick="scrollTo(0,0)">↑</button>
+  <button onclick="scrollTo(0,document.body.scrollHeight)">↓</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const contentDiv = document.getElementById('blog-content');
-    const tocDiv = document.getElementById('toc');
-    
-    if (!contentDiv || !tocDiv) return;
-    
-    const headings = contentDiv.querySelectorAll('h1, h2, h3, h4');
-    
-    if (headings.length > 0) {
-        let tocHTML = '';
-        
-        headings.forEach(function(heading, index) {
-            const level = parseInt(heading.tagName.charAt(1)); // 1,2,3,4
-            
-            const headingId = 'heading-' + index;
-            heading.id = headingId;
-            
-            // 缩进
-            let indent = 0;
-            let levelClass = '';
-            
-            if (level === 1) {
-                indent = 0;
-                levelClass = 'toc-h1';
-            } else if (level === 2) {
-                indent = 12;
-                levelClass = 'toc-h2';
-            } else if (level === 3) {
-                indent = 24;
-                levelClass = 'toc-h3';
-            } else if (level === 4) {
-                indent = 36;
-                levelClass = 'toc-h4';
-            }
-            
-            // 构建目录项
-            tocHTML += '<div style="margin-left: ' + indent + 'px; margin-bottom: 6px;">';
-            tocHTML += '<a href="#' + headingId + '" class="toc-link ' + levelClass + '" data-level="' + level + '">';
-            tocHTML += '<span class="title">' + heading.textContent + '</span>';
-            tocHTML += '</a></div>';
-        });
-        
-        tocDiv.innerHTML = tocHTML;
-    } else {
-        tocDiv.innerHTML = '<div style="color: #6c757d; padding: 10px; font-size: 12px;"></div>';
+(() => {
+  const content = document.getElementById('blog-content');
+  const toc = document.getElementById('toc');
+  if (!content || !toc) return;
+
+  const headings = [...content.querySelectorAll('h1, h2, h3, h4')];
+  if (!headings.length) { toc.innerHTML = '<div style="color:#6c757d;padding:10px;font-size:12px"></div>'; return; }
+
+  toc.innerHTML = headings.map((h, i) => {
+    h.id = 'heading-' + i;
+    const level = +h.tagName[1];
+    const indent = (level - 1) * 12;
+    return `<div style="margin-left:${indent}px;margin-bottom:6px">
+      <a href="#${h.id}" class="toc-link ${level === 1 ? 'toc-h1' : ''}" data-level="${level}">${h.textContent}</a>
+    </div>`;
+  }).join('');
+
+  toc.querySelectorAll('a').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    history.pushState(null, null, a.getAttribute('href'));
+  }));
+
+  let timer;
+  const updateActive = () => {
+    const links = [...toc.querySelectorAll('.toc-link')];
+    let activeId = null, minDist = Infinity;
+    for (const h of headings) {
+      const rect = h.getBoundingClientRect();
+      if (rect.top <= 120 && rect.bottom >= 0) { activeId = h.id; break; }
+      const dist = Math.abs(rect.top - 80);
+      if (dist < minDist) { minDist = dist; activeId = h.id; }
     }
-    
-    // 点击目录跳转
-    document.querySelectorAll('#toc a').forEach(function(link) {
-        link.addEventListener('click', function(event) {
-            event.preventDefault();
-            const targetId = this.getAttribute('href').substring(1);
-            const targetElement = document.getElementById(targetId);
-            
-            if (targetElement) {
-                targetElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-                history.pushState(null, null, '#' + targetId);
-            }
-        });
+    links.forEach(a => {
+      a.classList.toggle('toc-active', a.getAttribute('href') === '#' + activeId);
+      if (!a.classList.contains('toc-h1')) a.style.fontWeight = a.classList.contains('toc-active') ? 'bold' : '';
     });
-    
-    // 当前阅读标题高亮
-    function updateActiveHeading() {
-        const headings = document.querySelectorAll('#blog-content h1, #blog-content h2, #blog-content h3, #blog-content h4');
-        const tocLinks = document.querySelectorAll('#toc .toc-link');
-        
-        if (headings.length === 0 || tocLinks.length === 0) return;
-        
-        let currentHeading = null;
-        let minDistance = Infinity;
-        
-        for (let i = 0; i < headings.length; i++) {
-            const rect = headings[i].getBoundingClientRect();
-            const distance = Math.abs(rect.top - 80);
-            
-            if (rect.top <= 120 && rect.bottom >= 0) {
-                currentHeading = headings[i].id;
-                break;
-            } else if (distance < minDistance) {
-                minDistance = distance;
-                currentHeading = headings[i].id;
-            }
-        }
-        
-        tocLinks.forEach(function(link) {
-            const isActive = (link.getAttribute('href') === '#' + currentHeading);
-            const level = parseInt(link.getAttribute('data-level'));
-            
-            // 清除所有内联样式，交给 CSS 控制
-            link.style.color = '';
-            link.style.fontWeight = '';
-            link.style.backgroundColor = '';
-            
-            if (isActive) {
-                link.classList.add('toc-active');
-                link.style.fontWeight = 'bold';
-            } else {
-                link.classList.remove('toc-active');
-                if (level === 1) {
-                    link.style.fontWeight = 'bold';
-                }
-            }
-        });
-    }
-    
-    // 防抖函数
-    let scrollTimer;
-    window.addEventListener('scroll', function() {
-        clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(updateActiveHeading, 50);
-    });
-    
-    // 初始化高亮
-    setTimeout(updateActiveHeading, 200);
-    
-    // 处理URL哈希
-    if (window.location.hash) {
-        setTimeout(function() {
-            const targetElement = document.getElementById(window.location.hash.substring(1));
-            if (targetElement) {
-                targetElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        }, 300);
-    }
-});
+  };
+  addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(updateActive, 50); }, { passive: true });
+  setTimeout(updateActive, 200);
+
+  if (location.hash) setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+})();
 </script>
 {% endblock %}

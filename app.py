@@ -140,6 +140,45 @@ def tizhong():
     today = get_china_time()
     return render_template('tizhong.html', records_json=json.dumps(records_list, ensure_ascii=False), today=today, current_limit=limit)
 
+
+
+@app.route('/tizhong/data')
+def tizhong_data():
+    """导出体重数据JSON"""
+    limit = request.args.get('limit', '30')
+    conn = get_db_connection()
+    if limit == '0':
+        records = conn.execute('SELECT * FROM weight_records WHERE weight IS NOT NULL ORDER BY date ASC').fetchall()
+    else:
+        records = conn.execute('SELECT * FROM weight_records WHERE weight IS NOT NULL ORDER BY date DESC LIMIT ?', (int(limit),)).fetchall()
+        records = list(reversed(records))
+    conn.close()
+    
+    records_list = []
+    for r in records:
+        note_str = r['note'] or '[]'
+        try:
+            note_list = json.loads(note_str)
+        except:
+            note_list = []
+        records_list.append({
+            'date': r['date'],
+            'weight': f"{r['weight']}kg" if r['weight'] is not None else None,
+            'note': note_list
+        })
+    
+    return jsonify({
+        'success': True,
+        'export_info': {
+            'export_time': get_china_time(),
+            'data_range': '全部记录' if limit == '0' else f'最近{limit}条记录',
+            'total_count': len(records_list),
+            'source': '体重追踪系统'
+        },
+        'records': records_list
+    })
+
+
 @app.route('/tizhong/get_detail')
 def get_weight_detail():
     date = request.args.get('date', '')
@@ -622,9 +661,9 @@ def photo_upload():
         conn.execute('INSERT INTO photos (filename, title, photo_date, note, data, size_kb) VALUES (?, ?, ?, ?, ?, ?)',
                      (filename, '', photo_date, note, compressed, size_kb))
         conn.commit()
-        new_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]  # ← 加这行
+        new_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.close()
-        return jsonify({'success': True, 'message': '上传成功', 'id': new_id})  # ← 加了 'id'
+        return jsonify({'success': True, 'message': '上传成功', 'id': new_id})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

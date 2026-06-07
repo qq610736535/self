@@ -24,6 +24,7 @@
                 <a href="?limit=30" class="range-btn {% if current_limit == '30' %}active{% endif %}">30条</a>
                 <a href="?limit=100" class="range-btn {% if current_limit == '100' %}active{% endif %}">100条</a>
                 <a href="?limit=0" class="range-btn {% if current_limit == '0' %}active{% endif %}">全部</a>
+                <button type="button" id="exportBtn" class="range-btn export-btn" title="导出当前数据为JSON">导出JSON</button>
             </div>
             <div class="tooltip" id="tooltip"></div>
             <svg id="weightChart" viewBox="0 0 600 350" style="width:100%;height:auto">
@@ -47,10 +48,13 @@
 .page-container{max-width:1100px;margin:0 auto;padding:15px}
 .main-layout{display:flex;gap:15px;min-height:500px}
 .chart-panel{flex:1;min-width:0;border:1px solid #e0e0e0;padding:15px;position:relative;background:#fff;border-radius:6px}
-.chart-range{display:flex;gap:4px}
-.range-btn{padding:3px 10px;border:1px solid #ddd;border-radius:3px;font-size:11px;color:#666;text-decoration:none;background:#f9f9f9}
+.chart-range{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.range-btn{padding:3px 10px;border:1px solid #ddd;border-radius:3px;font-size:11px;color:#666;text-decoration:none;background:#f9f9f9;cursor:pointer}
 .range-btn:hover{background:#eee}
 .range-btn.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
+.export-btn{margin-left:12px;background:var(--primary-color);color:#fff;border-color:var(--primary-color);font-weight:500}
+.export-btn:hover{background:var(--primary-dark);border-color:var(--primary-dark);color:#fff}
+.export-btn:active{transform:scale(0.95)}
 .detail-panel{width:320px;flex-shrink:0;border:1px solid #e0e0e0;padding:15px;background:#fff;border-radius:6px}
 .detail-date{font-size:15px;font-weight:bold;margin-bottom:12px;padding-bottom:8px;color:var(--primary-color)}
 .detail-weight{font-size:28px;font-weight:bold;color:#333;margin-bottom:15px}
@@ -66,9 +70,16 @@
 .tooltip{display:none;position:absolute;background:rgba(0,0,0,.75);color:#fff;padding:4px 10px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:10}
 .data-point{cursor:pointer;fill:var(--primary-color)}
 .data-point.active{fill:#e74c3c}
+.no-record{color:#bbb;font-size:13px;margin-top:10px}
+.note-del{background:none;border:1px solid #e74c3c;color:#e74c3c;padding:1px 7px;border-radius:3px;cursor:pointer;font-size:11px;flex-shrink:0}
+.note-del:hover{background:#e74c3c;color:#fff}
+.unit{font-size:16px;color:#999;font-weight:normal}
+/* Dark mode */
 body.dark-mode .chart-panel,body.dark-mode .detail-panel{background:#242424;border-color:#444}
 body.dark-mode .range-btn{background:#333;color:#ccc;border-color:#555}
 body.dark-mode .range-btn.active{background:var(--primary-color);color:#fff}
+body.dark-mode .export-btn{background:var(--primary-color);color:#fff;border-color:var(--primary-dark)}
+body.dark-mode .export-btn:hover{background:var(--primary-dark);border-color:var(--primary-dark);color:#fff}
 body.dark-mode .detail-weight{color:#e0e0e0}
 body.dark-mode .note-item{color:#ccc;border-bottom-color:#333}
 body.dark-mode .tag-btn{background:#333;color:#ccc;border-color:#555}
@@ -182,6 +193,65 @@ const deleteNote = (date, index) => {
     }).then(r => r.json()).then(d => { if (d.success) loadDetail(date); else alert(d.message); });
 };
 
+// ===== 导出功能 =====
+const getCurrentLimit = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('limit') || '30';
+};
+
+const exportData = async () => {
+    const limit = getCurrentLimit();
+    const exportBtn = document.getElementById('exportBtn');
+    const originalText = exportBtn.textContent;
+    
+    try {
+        exportBtn.textContent = '导出中...';
+        exportBtn.disabled = true;
+        
+        const response = await fetch(`/tizhong/data?limit=${limit}`);
+        const data = await response.json();
+        
+        if (!data.success) throw new Error('获取数据失败');
+        
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        const rangeText = limit === '0' ? '全部' : `${limit}条`;
+        a.href = url;
+        a.download = `体重记录_${rangeText}_${timestamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        exportBtn.textContent = '导出成功';
+        setTimeout(() => {
+            exportBtn.textContent = originalText;
+            exportBtn.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('导出失败:', error);
+        exportBtn.textContent = '导出失败';
+        setTimeout(() => {
+            exportBtn.textContent = originalText;
+            exportBtn.disabled = false;
+        }, 2000);
+    }
+};
+
+document.getElementById('exportBtn').addEventListener('click', exportData);
+
+document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        exportData();
+    }
+});
+// ===== 导出功能结束 =====
+
 const svg = document.getElementById('weightChart');
 const chartPanel = document.getElementById('chartPanel');
 const tooltip = document.getElementById('tooltip');
@@ -224,8 +294,6 @@ const selectDate = date => {
     if (currentDate === date) return;
     currentDate = date;
     document.querySelectorAll('.data-point').forEach(p => p.classList.toggle('active', p.dataset.date === date));
-    // 鼠标悬停时不再更新日期输入框
-    // document.getElementById('recordDate').value = date;
     loadDetail(date);
 };
 
